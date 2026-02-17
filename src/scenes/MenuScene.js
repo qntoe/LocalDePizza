@@ -1,12 +1,6 @@
 import Phaser from 'phaser';
 import { auth } from '../network/auth';
 
-const BRAWLERS = [
-    { id: 'TURBO', name: 'PEPPER-DASH', power: 'TRIPLE BURST', desc: 'Fastest runner. Dash cooldown is halved.', color: 0x00d2ff, emoji: '⚡' },
-    { id: 'TANK', name: 'BIG MOZZA', power: 'STUN WAVE', desc: 'Hard to push. Power creates a shockwave.', color: 0xff4757, emoji: '🛡️' },
-    { id: 'SNATCHER', name: 'BASIL-HOOK', power: 'PIZZA STEAL', desc: 'Long range. Can steal items from distance.', color: 0xffcc00, emoji: '💰' }
-];
-
 export class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
 
@@ -14,74 +8,91 @@ export class MenuScene extends Phaser.Scene {
         const { width: w, height: h } = this.cameras.main;
         
         // Background
-        this.add.graphics().fillGradientStyle(0x0f0c29, 0x0f0c29, 0x302b63, 0x24243e, 1).fillRect(0, 0, w, h);
+        this.add.graphics().fillGradientStyle(0x0a0a1e, 0x0a0a1e, 0x1a1a4e, 0x0f0c29, 1).fillRect(0, 0, w, h);
+
+        // Floating pizza emojis in background
+        for (let i = 0; i < 6; i++) {
+            const pizza = this.add.text(
+                Phaser.Math.Between(30, w - 30), Phaser.Math.Between(100, h - 100),
+                '🍕', { fontSize: `${Phaser.Math.Between(20, 40)}px` }
+            ).setAlpha(0.1).setDepth(0);
+            this.tweens.add({ targets: pizza, y: `-=${Phaser.Math.Between(20, 50)}`, alpha: 0.2, duration: Phaser.Math.Between(2000, 4000), yoyo: true, repeat: -1 });
+        }
         
-        this.logo = this.add.text(w/2, 120, 'PIZZA\nBRAWL', {
-            fontFamily: 'Bangers', fontSize: '90px', color: '#ffffff', align: 'center', stroke: '#5142f5', strokeThickness: 16,
+        // Logo
+        this.add.text(w/2, 100, 'LOCAL\nDE PIZZA', {
+            fontFamily: 'Bangers', fontSize: '80px', color: '#ffffff', align: 'center', 
+            stroke: '#5142f5', strokeThickness: 14,
             shadow: { offsetX: 0, offsetY: 8, color: '#000', fill: true, stroke: true }
         }).setOrigin(0.5).setDepth(20);
 
+        this.add.text(w/2, 195, '— ZK TYCOON —', {
+            fontFamily: 'Orbitron', fontSize: '16px', color: '#ffcc00', fontWeight: 'bold'
+        }).setOrigin(0.5).setDepth(20);
+
         // Character Preview
-        this.selectedId = 'TURBO';
-        this.charContainer = this.add.container(w/2, 320);
+        this.charContainer = this.add.container(w/2, 330);
         this.charSprite = this.add.sprite(0, 0, 'player').setScale(3.5);
         this.charContainer.add([this.add.image(0, 45, 'shadow').setAlpha(0.3).setScale(1.3), this.charSprite]);
         
-        // Selection UI
-        this.add.text(w/2, 450, 'SELECT YOUR BRAWLER', { fontFamily: 'Orbitron', fontSize: '14px', fontWeight: 'bold' }).setOrigin(0.5);
+        // Idle animation
+        this.tweens.add({ targets: this.charSprite, y: -8, duration: 1200, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+        // How to play
+        const instructions = [
+            '🔥 Oven bakes pizzas automatically',
+            '🍕 Walk to oven → pick up stack',
+            '🛎️ Walk to counter → serve customers',
+            '💵 Collect cash → deposit in vault',
+            '🌟 Exchange cash for tokens → upgrade!',
+            '⚠️ Don\'t let the line overflow!'
+        ];
         
-        this.brawlerButtons = [];
-        BRAWLERS.forEach((b, i) => {
-            const x = w/2 + (i-1)*120;
-            const btn = this.createBrawlerSelect(x, 520, b);
-            this.brawlerButtons.push(btn);
+        const instructBg = this.add.graphics()
+            .fillStyle(0x000, 0.4).fillRoundedRect(w/2 - 190, 430, 380, 180, 20)
+            .setDepth(10);
+        
+        instructions.forEach((txt, i) => {
+            this.add.text(w/2, 450 + (i * 25), txt, { 
+                fontFamily: 'Orbitron', fontSize: '11px', color: '#ccc' 
+            }).setOrigin(0.5).setDepth(11);
         });
 
-        this.powerDesc = this.add.text(w/2, 600, BRAWLERS[0].desc, { fontFamily: 'Orbitron', fontSize: '12px', color: '#aaa', align: 'center', wordWrap: { width: 300 } }).setOrigin(0.5);
+        // Global progress bar
+        const progress = parseFloat(localStorage.getItem('global_party_progress') || "74.00");
+        this.add.graphics()
+            .fillStyle(0x333, 0.8).fillRoundedRect(w/2 - 160, 630, 320, 30, 15)
+            .fillStyle(0x2ecc71, 1).fillRoundedRect(w/2 - 160, 630, 320 * (progress / 100), 30, 15)
+            .lineStyle(2, 0xffffff, 0.5).strokeRoundedRect(w/2 - 160, 630, 320, 30, 15)
+            .setDepth(10);
+        this.add.text(w/2, 645, `🌐 Global Party: ${progress}%`, { fontFamily: 'Orbitron', fontSize: '11px', color: '#fff', fontWeight: 'bold' }).setOrigin(0.5).setDepth(11);
 
         // Play Button
-        this.startBtn = this.createJuiceButton(w/2, 720, 'BRAWL!', 0xffcc00, () => this.handleStart());
+        this.createJuiceButton(w/2, 710, '🍕 PLAY!', 0xffcc00, () => this.handleStart());
         
-        this.loginBtn = this.createJuiceButton(w/2, 50, 'LOGIN', 0x5142f5, () => this.handleConnect(), 0xffffff, 140, 40);
+        // Login
+        this.loginBtn = this.createJuiceButton(w/2, 50, '🔑 LOGIN', 0x5142f5, () => this.handleConnect(), 0xffffff, 150, 42);
 
         this.checkExistingLogin();
-    }
-
-    createBrawlerSelect(x, y, data) {
-        const c = this.add.container(x, y);
-        const bg = this.add.circle(0, 0, 45, 0xffffff, 0.1).setStrokeStyle(4, 0xffffff);
-        const icon = this.add.text(0, 0, data.emoji, { fontSize: '36px' }).setOrigin(0.5);
-        c.add([bg, icon]);
-        
-        const zone = this.add.circle(0, 0, 45, 0x000, 0).setInteractive({ useHandCursor: true });
-        c.add(zone);
-
-        zone.on('pointerdown', () => {
-            this.selectedId = data.id;
-            this.powerDesc.setText(data.desc);
-            this.charSprite.setTint(data.color);
-            this.brawlerButtons.forEach(b => b.bg.setStrokeStyle(4, 0xffffff).setFillStyle(0xffffff, 0.1));
-            bg.setStrokeStyle(6, 0xffcc00).setFillStyle(0xffcc00, 0.3);
-            this.tweens.add({ targets: c, scale: 1.1, duration: 100, yoyo: true });
-        });
-
-        if (data.id === 'TURBO') bg.setStrokeStyle(6, 0xffcc00).setFillStyle(0xffcc00, 0.3);
-        return { container: c, bg };
+        this.cameras.main.fadeIn(400);
     }
 
     createJuiceButton(x, y, txt, col, cb, textCol=0xffffff, bw=280, bh=70) {
         const c = this.add.container(x, y);
-        const bg = this.add.graphics().fillStyle(col, 1).fillRoundedRect(-bw/2, -bh/2, bw, bh, 20).lineStyle(5, 0xffffff).strokeRoundedRect(-bw/2, -bh/2, bw, bh, 20);
-        const t = this.add.text(0, 0, txt, { fontFamily: 'Bangers', fontSize: bh > 50 ? '36px' : '20px', color: Phaser.Display.Color.IntegerToColor(textCol).rgba }).setOrigin(0.5);
+        const shadow = this.add.graphics().fillStyle(0x000, 0.3).fillRoundedRect(-bw/2, -bh/2+6, bw, bh, 22);
+        const bg = this.add.graphics()
+            .fillStyle(col, 1).fillRoundedRect(-bw/2, -bh/2, bw, bh, 22)
+            .lineStyle(4, 0xffffff, 0.8).strokeRoundedRect(-bw/2, -bh/2, bw, bh, 22);
+        const t = this.add.text(0, 0, txt, { fontFamily: 'Bangers', fontSize: bh > 50 ? '34px' : '18px', color: Phaser.Display.Color.IntegerToColor(textCol).rgba }).setOrigin(0.5);
         if(textCol === 0xffffff) t.setStroke('#000', 4);
-        c.add([this.add.graphics().fillStyle(0x000, 0.2).fillRoundedRect(-bw/2, -bh/2+8, bw, bh, 20), bg, t]);
+        c.add([shadow, bg, t]);
         c.setInteractive(new Phaser.Geom.Rectangle(-bw/2, -bh/2, bw, bh), Phaser.Geom.Rectangle.Contains).on('pointerdown', () => {
-            this.tweens.add({ targets: c, scale: 0.9, duration: 100, yoyo: true, onComplete: cb });
+            this.tweens.add({ targets: c, scale: 0.92, duration: 80, yoyo: true, onComplete: cb });
         });
         return { container: c, text: t };
     }
 
     async handleConnect() { const w = await auth.login(); if (w) this.loginBtn.text.setText(w.short); }
     async checkExistingLogin() { const u = await auth.checkSession(); if (u) this.loginBtn.text.setText(u.short); }
-    handleStart() { if (!auth.address) this.handleConnect(); else this.scene.start('ArenaScene', { class: this.selectedId }); }
+    handleStart() { if (!auth.address) this.handleConnect(); else this.scene.start('ArenaScene'); }
 }
